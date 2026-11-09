@@ -1,0 +1,13 @@
+# Minimal values for prometheus-community/kube-prometheus-stack on a laptop cluster.
+grafana:
+  adminPassword: lab-admin          # local demo only — never reuse
+  service:
+    type: ClusterIP
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    # Pick up ServiceMonitors from any namespace (needed for Kepler)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+alertmanager:
+  enabled: false

@@ -1,0 +1,52 @@
+# Runs the benchmark 4 times (2 in parallel) on the "bench" worker pool.
+# Results are written to a hostPath on the node; copy them out with `make k8s-collect`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: energy-bench
+  labels:
+    app: energy-bench
+spec:
+  completions: 4
+  parallelism: 2
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: energy-bench
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        lab/pool: bench
+      containers:
+        - name: bench
+          image: energy-bench:0.1
+          imagePullPolicy: IfNotPresent
+          args: ["--model", "resnet18", "--steps", "30", "--threads", "2",
+                 "--tag", "k8s", "--output-dir", "/results"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: "2"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: results
+              mountPath: /results
+            - name: powercap
+              mountPath: /sys/class/powercap
+              readOnly: true
+      volumes:
+        - name: results
+          hostPath:
+            path: /tmp/energy-bench-results
+            type: DirectoryOrCreate
+        - name: powercap
+          hostPath:
+            path: /sys/class/powercap

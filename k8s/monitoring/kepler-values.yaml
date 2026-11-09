@@ -1,0 +1,7 @@
+# Kepler (CNCF sandbox) exports per-pod energy estimates to Prometheus.
+# On bare metal it reads RAPL; in kind/VMs it falls back to model-based estimates,
+# so treat the numbers as estimates and say so in your README.
+serviceMonitor:
+  enabled: true
+  labels:
+    release: monitoring

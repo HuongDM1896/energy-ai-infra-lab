@@ -1,0 +1,22 @@
+# A 1 control-plane + 2 worker cluster on your laptop.
+# /sys is mounted so pods *may* read RAPL on a bare-metal Linux host
+# (it will not work inside a VM or on macOS — the benchmark then logs energy = null).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: energy-lab
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      lab/pool: bench
+    extraMounts:
+      - hostPath: /sys/class/powercap
+        containerPath: /sys/class/powercap
+        readOnly: true
+  - role: worker
+    labels:
+      lab/pool: bench
+    extraMounts:
+      - hostPath: /sys/class/powercap
+        containerPath: /sys/class/powercap
+        readOnly: true

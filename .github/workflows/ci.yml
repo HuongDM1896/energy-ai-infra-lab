@@ -1,0 +1,23 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  bench-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU PyTorch
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install pandas matplotlib
+      - name: Smoke-test the benchmark
+        run: python bench/train_bench.py --model tiny --steps 3 --warmup 1 --tag ci --output-dir results/ci
+      - name: Aggregate
+        run: python analysis/aggregate.py results --out analysis/out
+      - name: Validate Kubernetes manifests
+        run: |
+          pip install yamllint
+          yamllint -d relaxed k8s/
