@@ -4,12 +4,12 @@
 #
 # Usage (from the repo root, venv activated):
 #   bash scripts/g5k/wattmeter-check.sh
-#   STEPS=2000 SITE=nancy METRIC=wattmetre_power_watt bash scripts/g5k/wattmeter-check.sh
+#   STEPS=2000 SITE=nancy METRIC=pdu_outlet_power_watt bash scripts/g5k/wattmeter-check.sh
 set -euo pipefail
 
 STEPS=${STEPS:-1000}
 SITE=${SITE:-nancy}
-METRIC=${METRIC:-wattmetre_power_watt}
+METRIC=${METRIC:-pdu_outlet_power_watt}   # what gros exposes; other clusters may use wattmetre_power_watt
 WAIT=${WAIT:-90}           # Kwollect ingestion delay before querying
 OUT=results/g5k-watt/$(date +%Y%m%d-%H%M%S)
 N=$(hostname -s)
