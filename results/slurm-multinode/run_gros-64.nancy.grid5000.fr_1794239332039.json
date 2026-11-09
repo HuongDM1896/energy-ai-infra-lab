@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-11-09T15:48:52.034161+00:00",
+  "host": "gros-64.nancy.grid5000.fr",
+  "platform": "Linux-6.12.115+deb13.1-amd64-x86_64-with-glibc2.41",
+  "tag": "multinode",
+  "scheduler": "slurm",
+  "slurm_job_id": "33",
+  "slurm_array_task_id": null,
+  "pod_name": null,
+  "model": "resnet18",
+  "device": "cpu",
+  "threads": 18,
+  "batch_size": 32,
+  "steps": 500,
+  "elapsed_s": 17.30347711399918,
+  "throughput_samples_per_s": 924.6696426728813,
+  "cpu_freq_khz": 2100111,
+  "cpu_energy_j": 1403.708686,
+  "gpu_energy_j": null,
+  "energy_per_sample_j": 0.08773179287499999,
+  "final_loss": 3.121739064226858e-05
+}

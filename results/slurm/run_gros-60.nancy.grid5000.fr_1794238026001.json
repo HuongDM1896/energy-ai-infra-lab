@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-11-09T15:27:05.999667+00:00",
+  "host": "gros-60.nancy.grid5000.fr",
+  "platform": "Linux-6.12.115+deb13.1-amd64-x86_64-with-glibc2.41",
+  "tag": "slurm",
+  "scheduler": "slurm",
+  "slurm_job_id": "8",
+  "slurm_array_task_id": null,
+  "pod_name": null,
+  "model": "resnet18",
+  "device": "cpu",
+  "threads": 18,
+  "batch_size": 32,
+  "steps": 500,
+  "elapsed_s": 18.495652085000984,
+  "throughput_samples_per_s": 865.0681752915958,
+  "cpu_freq_khz": 2110614,
+  "cpu_energy_j": 1488.152074,
+  "gpu_energy_j": null,
+  "energy_per_sample_j": 0.093009504625,
+  "final_loss": 3.121739064226858e-05
+}

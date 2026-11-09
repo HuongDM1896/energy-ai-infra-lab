@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-11-09T15:03:19.524762+00:00",
+  "host": "gros-60.nancy.grid5000.fr",
+  "platform": "Linux-6.12.115+deb13.1-amd64-x86_64-with-glibc2.41",
+  "tag": "slurm",
+  "scheduler": "slurm",
+  "slurm_job_id": "6",
+  "slurm_array_task_id": null,
+  "pod_name": null,
+  "model": "resnet18",
+  "device": "cpu",
+  "threads": 18,
+  "batch_size": 32,
+  "steps": 500,
+  "elapsed_s": 15.970389943000555,
+  "throughput_samples_per_s": 1001.8540597383736,
+  "cpu_freq_khz": 2100448,
+  "cpu_energy_j": 1323.966276,
+  "gpu_energy_j": null,
+  "energy_per_sample_j": 0.08274789225000001,
+  "final_loss": 3.121739064226858e-05
+}
+saved -> results/slurm/run_gros-60.nancy.grid5000.fr_1794236599526.json
+===== energy summary (job 6 on gros-60) =====
+slurm step energy (sstat)      : 2270 J  (whole srun step, incl. startup)
+slurm node power x time        : 1780 J over 20 s  (CurrentWatts, 5 s refresh)
+in-process RAPL                : 1324 J over 16 s  (training loop only)
+throughput                     : 1002 samples/s

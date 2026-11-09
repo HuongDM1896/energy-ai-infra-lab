@@ -1,0 +1,20 @@
+job=7 nodes=gros-[60,64-65]
+0: running on gros-60
+2: running on gros-65
+1: running on gros-64
+0:   "host": "gros-60.nancy.grid5000.fr",
+0:   "elapsed_s": 18.161057573999642,
+0:   "throughput_samples_per_s": 881.0059620595263,
+0:   "cpu_energy_j": 1516.311792,
+2:   "host": "gros-65.nancy.grid5000.fr",
+2:   "elapsed_s": 16.96400148400062,
+2:   "throughput_samples_per_s": 943.173697260649,
+2:   "cpu_energy_j": 1400.404191,
+1:   "host": "gros-64.nancy.grid5000.fr",
+1:   "elapsed_s": 17.02303518199915,
+1:   "throughput_samples_per_s": 939.9028921069877,
+1:   "cpu_energy_j": 1378.519542,
+===== per-node summary =====
+gros-60.nancy.grid5000.fr           881 samples/s   RAPL   83.5 W
+gros-65.nancy.grid5000.fr           943 samples/s   RAPL   82.6 W
+gros-64.nancy.grid5000.fr           940 samples/s   RAPL   81.0 W

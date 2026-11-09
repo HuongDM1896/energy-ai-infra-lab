@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-11-09T13:15:39.344583+00:00",
+  "host": "gros-120.nancy.grid5000.fr",
+  "platform": "Linux-6.12.115+deb13.1-amd64-x86_64-with-glibc2.41",
+  "tag": "gros-watt",
+  "scheduler": "bare",
+  "slurm_job_id": null,
+  "slurm_array_task_id": null,
+  "pod_name": null,
+  "model": "resnet18",
+  "device": "cpu",
+  "threads": 18,
+  "batch_size": 32,
+  "steps": 1000,
+  "elapsed_s": 34.20712486000002,
+  "throughput_samples_per_s": 935.4776272769736,
+  "cpu_freq_khz": 2532534,
+  "cpu_energy_j": 2882.977117,
+  "gpu_energy_j": null,
+  "energy_per_sample_j": 0.09009303490625,
+  "final_loss": 1.9144064935971983e-05
+}
