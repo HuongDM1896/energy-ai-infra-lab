@@ -82,41 +82,116 @@ python bench/train_bench.py --model resnet18 --steps 50 --threads 18 \
 ```
 `cpu_energy_j` should now be a number, not `null`.
 
-### CPU frequency sweep (your thesis skill, shown in a portfolio)
+### CPU frequency sweep (turbo off, frequency list detected automatically)
+`gros` is a Xeon Gold 5220: 2.2 GHz base, 3.9 GHz turbo. With the `intel_pstate`
+driver there is no `scaling_available_frequencies` file, so the list is built
+from min to base frequency in 200 MHz steps.
 ```bash
-cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_frequencies 2>/dev/null \
-  || cpupower frequency-info | grep -i "hardware limits"
-```
-```bash
-for F in 1000000 1400000 1800000 2200000; do
-  sudo-g5k cpupower frequency-set -d ${F} -u ${F} >/dev/null
-  for rep in 1 2 3; do
+rm -rf results/g5k-freq   # do not mix with earlier runs
+CPUFREQ=/sys/devices/system/cpu/cpu0/cpufreq
+echo "driver=$(cat $CPUFREQ/scaling_driver)"
+ORIG_MIN=$(cat $CPUFREQ/scaling_min_freq); ORIG_MAX=$(cat $CPUFREQ/scaling_max_freq)
+
+# 1) Disable turbo (intel_pstate or acpi-cpufreq)
+if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+  echo 1 | sudo-g5k tee /sys/devices/system/cpu/intel_pstate/no_turbo
+elif [ -f /sys/devices/system/cpu/cpufreq/boost ]; then
+  echo 0 | sudo-g5k tee /sys/devices/system/cpu/cpufreq/boost
+fi
+
+# 2) Build the frequency list (kHz): min -> base, 200 MHz steps
+MIN=$(cat $CPUFREQ/cpuinfo_min_freq)
+if [ -f $CPUFREQ/scaling_available_frequencies ]; then
+  FREQS=$(tr ' ' '\n' < $CPUFREQ/scaling_available_frequencies | grep . | sort -n | xargs)
+else
+  MAX=$(cat $CPUFREQ/base_frequency 2>/dev/null || cat $CPUFREQ/cpuinfo_max_freq)
+  FREQS=$(seq $MIN 200000 $MAX | xargs)
+  [[ " $FREQS " == *" $MAX "* ]] || FREQS="$FREQS $MAX"
+fi
+echo "FREQS (kHz): $FREQS"
+
+# 3) Sweep: 3 repetitions, frequency order shuffled each time to avoid drift
+for rep in 1 2 3; do
+  for F in $(echo $FREQS | tr ' ' '\n' | shuf); do
+    sudo-g5k cpupower frequency-set -d ${F} -u ${F} >/dev/null
+    sleep 2
+    echo "rep=$rep target=$((F/1000)) MHz actual=$(awk '/MHz/{s+=$4;n++}END{printf "%.0f",s/n}' /proc/cpuinfo) MHz"
     python bench/train_bench.py --model resnet18 --steps 50 --threads 18 \
       --tag freq-$((F/1000))MHz --output-dir results/g5k-freq
   done
 done
-sudo-g5k cpupower frequency-set -d 1000000 -u 3900000 >/dev/null   # reset
+
+# 4) Restore the original settings
+sudo-g5k cpupower frequency-set -d $ORIG_MIN -u $ORIG_MAX >/dev/null
+[ -f /sys/devices/system/cpu/intel_pstate/no_turbo ] && echo 0 | sudo-g5k tee /sys/devices/system/cpu/intel_pstate/no_turbo
 python analysis/aggregate.py results/g5k-freq --out analysis/out-freq
 ```
-Frequency values are in kHz; adjust them to what the first command prints.
+If `actual` drifts far from `target` (HWP), try passive mode:
+`echo passive | sudo-g5k tee /sys/devices/system/cpu/intel_pstate/status` (untested on gros).
 If `cpupower` is missing: `sudo-g5k apt-get install -y linux-cpupower`.
 
 ### Cross-check with the wattmeter (Kwollect)
+Compares node-level power (wattmeter) with RAPL package power over the exact
+training window, using a 30 s idle baseline.
 ```bash
-START=$(date -u +%Y-%m-%dT%H:%M:%S)
-python bench/train_bench.py --model resnet18 --steps 200 --threads 18 --tag gros-watt --output-dir results/g5k-watt
-END=$(date -u +%Y-%m-%dT%H:%M:%S)
+mkdir -p results/g5k-watt
 N=$(hostname -s)
-curl -s "https://api.grid5000.fr/stable/sites/nancy/metrics?nodes=${N}&metrics=wattmetre_power_watt&start_time=${START}&end_time=${END}" \
-  -o results/g5k-watt/kwollect_${N}.json
-python - <<'EOF'
-import json, glob
-d = json.load(open(glob.glob("results/g5k-watt/kwollect_*.json")[0]))
-vals = [x["value"] for x in d]
-print(f"{len(vals)} samples, mean {sum(vals)/max(len(vals),1):.1f} W")
+
+# Idle baseline: 30 s
+T0=$(date -u +%s); sleep 30; T1=$(date -u +%s)
+
+# Run long enough (>30 s) to get many wattmeter samples
+python bench/train_bench.py --model resnet18 --steps 1000 --threads 18 \
+  --tag gros-watt --output-dir results/g5k-watt
+T2=$(date -u +%s)
+
+echo "Waiting for Kwollect to ingest the data..."; sleep 90
+curl -sf "https://api.grid5000.fr/stable/sites/nancy/metrics?nodes=${N}&metrics=wattmetre_power_watt&start_time=${T0}&end_time=$((T2+5))" \
+  -o results/g5k-watt/kwollect_${N}.json && echo "kwollect OK"
+
+python - "$T0" "$T1" "$N" <<'EOF'
+import json, glob, sys
+from datetime import datetime, timezone
+t0, t1, node = float(sys.argv[1]), float(sys.argv[2]), sys.argv[3]
+run = json.load(open(sorted(glob.glob("results/g5k-watt/run_*.json"))[-1]))
+end = datetime.fromisoformat(run["timestamp"]).timestamp()
+start = end - run["elapsed_s"]
+
+pts = []
+for x in json.load(open(f"results/g5k-watt/kwollect_{node}.json")):
+    ts = datetime.fromisoformat(x["timestamp"].replace("Z", "+00:00"))
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    pts.append((ts.timestamp(), x["value"]))
+pts.sort()
+if not pts:
+    sys.exit("No wattmeter samples: check the metric name / time window / wait longer")
+fmt = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M:%S")
+print(f"wattmeter: {len(pts)} samples, {fmt(pts[0][0])} -> {fmt(pts[-1][0])} UTC")
+print(f"RAPL window: {fmt(start)} -> {fmt(end)} UTC")
+
+def mean(a, b):
+    v = [p for t, p in pts if a <= t <= b]
+    return (sum(v) / len(v), len(v)) if v else (float("nan"), 0)
+
+idle, ni = mean(t0, t1)
+load, nl = mean(start, end)
+rapl_w = run["cpu_energy_j"] / run["elapsed_s"] if run["cpu_energy_j"] else float("nan")
+print(f"node idle power    : {idle:6.1f} W ({ni} samples)")
+print(f"node load power    : {load:6.1f} W ({nl} samples)")
+print(f"node dynamic power : {load - idle:6.1f} W")
+print(f"RAPL package power : {rapl_w:6.1f} W")
+print(f"node energy        : {load * run['elapsed_s']:.0f} J  vs  RAPL {run['cpu_energy_j'] or float('nan'):.0f} J")
 EOF
 ```
-If the metric list is empty, check which metrics `gros` exposes:
+Expect node power > RAPL: the wattmeter sees PSU losses, DRAM, fans and NIC,
+while RAPL here reads the package domain only. Compare *node dynamic power*
+with *RAPL package power*.
+
+If curl returns nothing, Kwollect may not accept epoch seconds: replace
+`${T0}` with `$(date -u -d @$T0 +%FT%T)` (same for the end time). If the
+sample window is shifted by exactly 1 h, timestamps are being read as local time.
+To list the metrics `gros` exposes:
 `curl -s https://api.grid5000.fr/stable/sites/nancy/clusters/gros/nodes/${N} | grep -i watt`
 
 ---
@@ -140,7 +215,9 @@ munge -n | ssh $(echo $WORKERS | cut -d" " -f1) unmunge | grep STATUS   # expect
 Generate `slurm.conf` (CPU/memory line comes from `slurmd -C` on this node):
 ```bash
 SHORTNODES=$(cut -d. -f1 ~/lab-nodes.txt | paste -sd,)
-NODELINE=$(slurmd -C | head -1 | sed "s/NodeName=[^ ]*/NodeName=${SHORTNODES}/")
+NODELINE=$(slurmd -C 2>/dev/null | grep -m1 '^NodeName=' | sed "s/NodeName=[^ ]*/NodeName=${SHORTNODES}/")
+[ -z "$NODELINE" ] && NODELINE="NodeName=${SHORTNODES} CPUs=$(nproc --all) RealMemory=$(( $(free -m | awk '/Mem:/{print $2}') - 2048 ))"
+echo "$NODELINE"
 cat > ~/slurm.conf <<EOF
 ClusterName=g5klab
 SlurmctldHost=$(echo $HEAD | cut -d. -f1)
@@ -175,11 +252,15 @@ All 3 nodes should show `idle`. If they show `down`: `sudo-g5k scontrol update n
 Run the repo's jobs:
 ```bash
 cd ~/energy-ai-infra-lab
-sed -i 's|^srun python|srun ~/venv-lab/bin/python|' slurm/bench.sbatch slurm/sweep-threads.sbatch
-sbatch slurm/bench.sbatch
+source ~/venv-lab/bin/activate     # sbatch passes this env to the job
+mkdir -p logs                      # sbatch opens logs/ before the script runs
+sbatch --wait slurm/bench.sbatch && tail -4 $(ls -t logs/energy-bench-*.out | head -1)
 sbatch slurm/sweep-threads.sbatch
 squeue
 ```
+`bench.sbatch` prints an energy summary at the end: Slurm's node counter
+(`ConsumedJoules`, includes startup) vs the in-process RAPL reading (training
+loop only). Explaining that gap is the point of the exercise.
 Energy as seen by Slurm (no database needed for these two):
 ```bash
 scontrol show node $(echo $HEAD | cut -d. -f1) | grep -iE "watts|joules"
