@@ -18,9 +18,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 def load(results_dir):
     rows = []
-    for path in sorted(glob.glob(os.path.join(results_dir, "**", "*.json"), recursive=True)):
+    # Only benchmark outputs (run_*.json); skips e.g. kwollect_*.json wattmeter dumps
+    for path in sorted(glob.glob(os.path.join(results_dir, "**", "run_*.json"), recursive=True)):
         with open(path) as f:
-            rows.append(json.load(f))
+            data = json.load(f)
+        if isinstance(data, dict):
+            rows.append(data)
     if not rows:
         raise SystemExit(f"no JSON results found under {results_dir}")
     return pd.DataFrame(rows)

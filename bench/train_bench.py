@@ -109,12 +109,39 @@ def build_model(name, num_classes):
     raise ValueError(f"unknown model {name}")
 
 
-def read_cpu_freq_khz():
+def _read(path):
     try:
-        with open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq") as f:
-            return int(f.read())
+        with open(path) as f:
+            return f.read().strip()
     except OSError:
         return None
+
+
+def read_cpu_freq_khz():
+    value = _read("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+    return int(value) if value else None
+
+
+def read_cpu_state():
+    """Snapshot of the CPU frequency settings, so every result says how the CPU was configured
+    (a forgotten turbo or an ignored frequency cap then shows up in the data)."""
+    base = "/sys/devices/system/cpu/cpu0/cpufreq/"
+    no_turbo = _read("/sys/devices/system/cpu/intel_pstate/no_turbo")
+    boost = _read("/sys/devices/system/cpu/cpufreq/boost")
+    turbo = None
+    if no_turbo is not None:
+        turbo = no_turbo == "0"
+    elif boost is not None:
+        turbo = boost == "1"
+    to_int = lambda v: int(v) if v and v.isdigit() else None
+    return {
+        "cpu_driver": _read(base + "scaling_driver"),
+        "cpu_governor": _read(base + "scaling_governor"),
+        "cpu_min_khz": to_int(_read(base + "scaling_min_freq")),
+        "cpu_max_khz": to_int(_read(base + "scaling_max_freq")),
+        "turbo_enabled": turbo,
+        "intel_pstate_status": _read("/sys/devices/system/cpu/intel_pstate/status"),
+    }
 
 
 def main():
@@ -189,6 +216,7 @@ def main():
         "elapsed_s": elapsed,
         "throughput_samples_per_s": samples / elapsed,
         "cpu_freq_khz": read_cpu_freq_khz(),
+        **read_cpu_state(),
         "cpu_energy_j": cpu_energy,
         "gpu_energy_j": gpu_energy,
         "energy_per_sample_j": ((cpu_energy or 0) + (gpu_energy or 0)) / samples
